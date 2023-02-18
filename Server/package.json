@@ -1,0 +1,29 @@
+{
+    "name": "server",
+    "version": "1.0.0",
+    "description": "This component has to: - receive the encrypted Bloom Filters from the Sniffer - decrypt the filters it receives - provide a way to analyze the data obtained from the filters",
+    "main": "index.js",
+    "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+ssh://git@gitlab.com/b3730/server.git"
+    },
+    "author": "Adrian Roman",
+    "license": "ISC",
+    "bugs": {
+      "url": "https://gitlab.com/b3730/server/issues"
+    },
+    "homepage": "https://gitlab.com/b3730/server#readme",
+    "dependencies": {
+      "@auth0/auth0-spa-js": "^1.22.0",
+      "@elastic/elasticsearch": "^8.1.0",
+      "body-parser": "^1.20.0",
+      "express": "^4.17.3",
+      "node-fetch": "^2.6.7",
+      "node-seal": "^5.0.0",
+      "path": "^0.12.7"
+    }
+  }
+  

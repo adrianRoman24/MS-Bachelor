@@ -1,0 +1,10 @@
+{
+    "PORT": 7000,
+    "ENCRYPTION_PATH": "/encrypt",
+    "ENCRYPTION_PATH_BATCH": "/encrypt/batch",
+    "MULTIPLY_PATH": "/multiply",
+    "POLY_MODULUS_DEGREE": 4096,
+    "BIT_SIZES": [36, 36, 37],
+    "BIT_SIZE": 20,
+    "BLOOM_FILTER_MAX_SIZE": 500
+}

@@ -1,0 +1,13 @@
+{
+    "SERVER_URL": "http://127.0.0.1:4200/epoch/result",
+    "INTERFACE": "wlx5ca6e630bd88",
+    "SENSOR_ID": "EC",
+    "PORT": 8000,
+    "HOST": "127.0.0.1",
+    "PKC_REGISTER_PATH": "/register",
+    "PKC_UNREGISTER_PATH": "/unregister",
+    "EPOCH_INTERVAL_IN_SEC": 300,
+    "BLOOM_FILTER_MAX_SIZE": 850,
+    "BLOOM_FILTER_FALSE_POS_PROBABILITY": 0.01,
+    "ENCRYPT_SERVICE_URL": "http://127.0.0.1:7000/encrypt"
+}

@@ -1,0 +1,25 @@
+{
+    "name": "encryptionservice",
+    "version": "1.0.0",
+    "description": "",
+    "main": "processor.js",
+    "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+ssh://git@gitlab.com/b3730/encryptionservice.git"
+    },
+    "author": "adrian_roman99@yahoo.com",
+    "license": "ISC",
+    "bugs": {
+      "url": "https://gitlab.com/b3730/encryptionservice/issues"
+    },
+    "homepage": "https://gitlab.com/b3730/encryptionservice#readme",
+    "dependencies": {
+      "body-parser": "^1.20.0",
+      "express": "^4.18.1",
+      "node-seal": "^5.0.0"
+    }
+  }
+  

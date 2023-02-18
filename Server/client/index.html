@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Monitoring System</title>
+    <base href=".">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.5.0/Chart.min.js"></script>
+
+</head>
+
+<body style="background-image: url(https://wallpaperaccess.com/full/6122888.jpg);">
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular.min.js"></script>
+
+<script src="https://cdn.auth0.com/js/auth0-spa-js/1.19/auth0-spa-js.production.js"></script>
+    
+<script type="module">
+    import SEAL from 'https://cdn.skypack.dev/node-seal'
+
+    angular.module('myApp', []).controller('myCtrl', async ($scope, $http) => {
+        function hideButtons() {
+            document.getElementById("loginButton").hidden = true;
+            document.getElementById("profileButton").hidden = true;
+            document.getElementById("logoutButton").hidden = true;
+            document.getElementById("keysDiv").hidden = true;
+            document.getElementById("sensorDiv").hidden = true;
+            document.getElementById("queryDiv").hidden = true;
+            document.getElementById("myChart").hidden = true;
+            document.getElementById("keysButton").hidden = true;
+            document.getElementById("sensorsButton").hidden = true;
+            document.getElementById("queryButton").hidden = true;
+            document.getElementById("userDivId").hidden = true;
+            document.getElementById("availableSensorsDiv").hidden = true;
+            document.getElementById("availableEpochsDiv").hidden = true;
+        }
+
+        hideButtons();
+
+        $scope.home = () => {
+            hideButtons();
+            location.reload();
+        }
+
+        $scope.auth0 = await createAuth0Client({
+            domain: "dev-cclw8rgf.us.auth0.com",
+            client_id: "MKcpGvfbFBxVKmb1p9I4zIn0eDwinSKi",
+            audience: "Monitoring-System-API-Identifier",
+        });
+
+        $scope.isAuthenticated = await $scope.auth0.isAuthenticated();
+        document.getElementById("loginButton").hidden = $scope.isAuthenticated;
+        document.getElementById("profileButton").hidden = !$scope.isAuthenticated;
+        document.getElementById("logoutButton").hidden = !$scope.isAuthenticated;
+        document.getElementById("keysButton").hidden = !$scope.isAuthenticated;
+        document.getElementById("sensorsButton").hidden = !$scope.isAuthenticated;
+        document.getElementById("queryButton").hidden = !$scope.isAuthenticated;
+
+
+        console.log({ isAuthenticated: $scope.isAuthenticated })
+
+        if ($scope.isAuthenticated) {
+            $scope.user = await $scope.auth0.getUser();
+            $scope.userPretty = `Name: ${$scope.user.name}\nEmail: ${$scope.user.email}`;
+            console.log($scope.user);
+        } 
+
+        $scope.epochsIdsForms = [];
+        $scope.epochsIds = [];
+        $scope.chartXValues = [];
+        $scope.chartYValues = [];
+
+        $scope.login = async () => {
+            await $scope.auth0.loginWithPopup();
+            location.reload();
+        }
+
+        $scope.logout = async () => {
+            console.log("logout")
+            await $scope.auth0.logout({
+                returnTo: "http://localhost:4200/",
+            });
+        }
+
+        $scope.profile = () => {
+            document.getElementById("userDivId").hidden = !document.getElementById("userDivId").hidden;
+        }
+
+        $scope.keys = () => {
+            document.getElementById("keysDiv").hidden = !document.getElementById("keysDiv").hidden ;
+        }
+
+        $scope.sensors = () => {
+            document.getElementById("sensorDiv").hidden = !document.getElementById("sensorDiv").hidden ;
+        }
+
+        $scope.query = () => {
+            document.getElementById("queryDiv").hidden = !document.getElementById("queryDiv").hidden ;
+        }
+
+        $scope.addEpochIdForm = () => {
+            $scope.epochsIdsForms.push(0);
+            $scope.epochsIds.push("");
+        };
+
+        $scope.removeEpochIdForm = () => {
+            $scope.epochsIdsForms.splice(-1);
+            $scope.epochsIds.splice(-1);
+        };
+
+        async function initSeal() {
+            const seal = await SEAL();
+            const schemeType = seal.SchemeType.bfv;
+            const securityLevel = seal.SecurityLevel.tc128;
+
+            const parms = seal.EncryptionParameters(schemeType);
+
+            // Set the PolyModulusDegree
+            parms.setPolyModulusDegree(4096);
+
+            // Create a suitable set of CoeffModulus primes
+            parms.setCoeffModulus(
+                seal.CoeffModulus.Create(4096, Int32Array.from([36, 36, 37]))
+            );
+
+            // Set the PlainModulus to a prime of bitSize 20.
+            parms.setPlainModulus(
+                seal.PlainModulus.Batching(4096, 20)
+            );
+
+            const context = seal.Context(
+                parms, // Encryption Parameters
+                true, // ExpandModChain
+                securityLevel // Enforce a security level
+            );
+
+            if (!context.parametersSet()) {
+                throw new Error(
+                    'Could not set the parameters in the given context. Please try different encryption parameters.'
+                )
+            }
+            return { seal, context };
+        }
+
+        const { seal, context } = await initSeal();
+
+        $scope.generatePairOfKeys = () => {
+            if (!$scope.pairOfKeysName || $scope.pairOfKeysName === "") {
+                $scope.generationResult = "Generation Failed. Keys pair name must not be empty.";
+                return;
+            }
+            const keyGenerator = seal.KeyGenerator(context);
+            const serializedPublicKey = keyGenerator.createPublicKey().save();
+            const serializedSecretKey = keyGenerator.secretKey().save();
+            const serializedGaloisKeys = keyGenerator.createGaloisKeys(Int32Array.from(
+                [1024, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1, 0])).save();
+            const serializedRelinKeys = keyGenerator.createRelinKeys().save();
+            const generationFileJson = {
+                pairName: $scope.pairOfKeysName,
+                serializedPublicKey,
+                serializedSecretKey,
+                serializedGaloisKeys,
+                serializedRelinKeys,
+            };
+			const blob = new Blob([JSON.stringify(generationFileJson)], { type:"application/json;charset=utf-8;" });			
+			const downloadLink = angular.element('<a></a>');
+            downloadLink.attr('href', window.URL.createObjectURL(blob));
+            downloadLink.attr('download', `${$scope.pairOfKeysName}#pair.json`);
+			downloadLink[0].click();
+            $scope.generationResult = "Generation completed successfully.";
+		};
+
+        $scope.loadPairOfKeys = async () => {
+            const uploadedPairOfKeysFile = document.getElementById('file').files[0],
+            fileReader = new FileReader();
+
+            fileReader.onloadend = function(e) {
+                $scope.uploadedPairOfKeys = JSON.parse(e.target.result);
+                if ("pairName" in $scope.uploadedPairOfKeys && "serializedPublicKey" in $scope.uploadedPairOfKeys &&
+                    "serializedSecretKey" in $scope.uploadedPairOfKeys) {
+                        $scope.$apply(() => {
+                            $scope.loadingResult = "Pair of keys loaded successfully.";
+                        });
+                } else {
+                    $scope.$apply(() => {
+                        $scope.loadingResult = "Pair of keys loading failed.";
+                        $scope.uploadedPairOfKeys = null;
+                    });
+                }
+            }
+            await fileReader.readAsText(uploadedPairOfKeysFile);
+        }
+    
+        $scope.registerPublicKey = async () => {
+            if (!$scope.sensorId || $scope.sensorId === "") {
+                $scope.registrationResult = "Sensor Id must not be empty.";
+                return;
+            }
+            const response = await $http({
+                method: "POST",
+                url: "http://localhost:4200/register",
+                data: {
+                    pkc: $scope.uploadedPairOfKeys.pairName,
+                    serializedPkc: $scope.uploadedPairOfKeys.serializedPublicKey,
+                    serializedGaloisKeys: $scope.uploadedPairOfKeys.serializedGaloisKeys,
+                    sensor_id: $scope.sensorId,
+                },
+                config: "contenttype",
+                headers: {
+                     "Content-Type": "application/json",
+                },
+            });
+            $scope.$apply(() => {
+                if ("result" in response.data) {
+                    $scope.registrationResult = response.data.result.message;
+                } else {
+                    $scope.registrationResult = response.data.error.message;
+                }
+                
+            })
+        }
+
+        $scope.unregisterPublicKey = async () => {
+            if (!$scope.sensorId || $scope.sensorId === "") {
+                $scope.registrationResult = "Sensor Id must not be empty.";
+                return;
+            }
+            const response = await $http({
+                method: "POST",
+                url: "http://localhost:4200/unregister",
+                data: {
+                    pkc: $scope.uploadedPairOfKeys.pairName,
+                    serializedPkc: $scope.uploadedPairOfKeys.serializedPublicKey,
+                    sensor_id: $scope.sensorId,
+                },
+                config: "contenttype",
+                headers: {
+                     "Content-Type": "application/json",
+                },
+            });
+            $scope.$apply(() => {
+                $scope.registrationResult = response.data;
+            });
+        };
+
+        $scope.availableSensors = async () => {
+            if ($scope.avSensors == undefined) {
+                const response = await $http({
+                    method: "GET",
+                    url: "http://localhost:4200/sensors",
+                    config: "contenttype",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                });
+                const sensors = response.data.result;
+                $scope.$apply(() => {
+                    $scope.avSensors = sensors;
+                });
+                document.getElementById("availableSensorsDiv").hidden = false;
+            } else {
+                document.getElementById("availableSensorsDiv").hidden = !document.getElementById("availableSensorsDiv").hidden;
+            }
+        }
+
+        $scope.getAvailableEpochs = async () => {
+            if (!$scope.uploadedPairOfKeys) {
+                document.getElementById("availableEpochs").textContent = "Please Load File with Public and Secret Key";
+                return;
+            }
+            const response = await $http({
+                method: "POST", 
+                url: "http://localhost:4200/epochs",
+                data: {
+                    pkc: $scope.uploadedPairOfKeys.pairName,
+                },
+                config: "contenttype",
+                headers: {
+                     "Content-Type": "application/json",
+                },
+            });
+            const epochs = response.data.result;
+            for (let i = 0; i < epochs.length; i += 1) {
+                epochs[i].epochStartTimestamp = new Date(epochs[i].epochStartTimestamp);
+                epochs[i].epochEndTimestamp = new Date(epochs[i].epochEndTimestamp);
+            }
+            document.getElementById("availableEpochs").textContent = "";
+            $scope.$apply(() => {
+                $scope.avEpochs = response.data.result;
+            });
+            document.getElementById("availableEpochsDiv").hidden = false;
+        };
+
+        $scope.getResult = async () => {
+            if (!$scope.uploadedPairOfKeys) {
+                document.getElementById("queryResult").textContent = "Please Load File with Public and Secret Key";
+                return;
+            }
+            for (let i = 0; i < $scope.epochsIds.length; i += 1) {
+                if ($scope.epochsIds[i] === "") {
+                    document.getElementById("queryResult").textContent = "Please Provide Valid Epochs Ids";
+                    return;
+                }
+            }
+            const response = await $http({
+                method: "POST",
+                url: "http://localhost:4200/query",
+                data: {
+                    pkc: $scope.uploadedPairOfKeys.pairName,
+                    serializedPkc: $scope.uploadedPairOfKeys.serializedPublicKey,
+                    serializedGaloisKeys: $scope.uploadedPairOfKeys.serializedGaloisKeys,
+                    serializedRelinKeys: $scope.uploadedPairOfKeys.serializedRelinKeys,
+                    epochs_ids: $scope.epochsIds,
+                },
+                config: "contenttype",
+                headers: {
+                    "Content-Type": "application/json",
+                }
+            });
+            const serializedBF = response.data.result.bloomFilter;
+            const cipherText = seal.CipherText();
+            cipherText.load(context, serializedBF);
+            const keyGenerator = seal.KeyGenerator(context)
+            const secretKey = keyGenerator.secretKey();
+            secretKey.load(context, $scope.uploadedPairOfKeys.serializedSecretKey);
+            const decryptor = seal.Decryptor(context, secretKey);
+            const decryptedPlainText = decryptor.decrypt(cipherText);
+            const encoder = seal.BatchEncoder(context);
+            const decodedArray = encoder.decode(decryptedPlainText);
+            const count = decodedArray[0];
+            const estimatedCount = - 500 / 4 * Math.log(1 - count / 500);
+            console.log({ bloomFilterCount: count });
+            console.log(response.data.result.queriedEpochs)
+            let xValue = [];
+            for (let i = 0; i < response.data.result.queriedEpochs.length; i += 1) {
+                const epoch = response.data.result.queriedEpochs[i];
+                const xData = `${epoch.sensorId}-${new Date(epoch.epochStartTimestamp).toISOString().split(".")[0]}`;
+                xValue.push(xData);
+            }
+            $scope.lastResultX = xValue;
+            $scope.lastResultY = Math.round(estimatedCount);
+            document.getElementById("queryResult").textContent = `Estimated Count: ${Math.round(estimatedCount)}`;
+        };
+
+        $scope.addToChart = () => {
+            $scope.chartXValues.push($scope.lastResultX);
+            $scope.chartYValues.push($scope.lastResultY);
+            new Chart("myChart", {
+                type: "bar",
+                data: {
+                    label: 'Epochs Data',
+                    labels: $scope.chartXValues,
+                    datasets: [{
+                        backgroundColor: "blue",
+                        data: $scope.chartYValues,
+                        label: 'Detections',
+                    }]
+                },
+                options: {
+                    events: ["click"],
+                    plugins: {
+                        tooltip: {
+                            // Tooltip will only receive click events
+                            events: ['click']
+                        }
+                    },
+                    legend: {display: false},
+                    title: {
+                        display: true,
+                        text: "Query Estimated Count"
+                    },
+                    scales: {
+                        xAxes: [{
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Query'
+                            },
+                        }],
+                        yAxes: [{
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Detections'
+                            },
+                            ticks: {
+                                beginAtZero: true
+                            }
+                        }]
+                    }
+                },
+            });
+            document.getElementById("myChart").hidden = false;
+        }
+
+        $scope.clearResults = () => {
+            $scope.queryResult = "";
+            $scope.chartXValues = [];
+            $scope.chartYValues = [];
+            document.getElementById("myChart").hidden = true;
+        }
+
+        $scope.clearEpochs = () => {
+            document.getElementById("availableEpochs").textContent = "";
+            document.getElementById("availableEpochsDiv").hidden = true;
+        };
+
+        $scope.deletePair = async () => {
+            if (!$scope.uploadedPairOfKeys) {
+                $scope.deletionResult = "Please load file with pair of keys.";
+                return;
+            }
+            const response = await $http({
+                method: "POST",
+                url: "http://localhost:4200/delete",
+                data: {
+                    pkc: $scope.uploadedPairOfKeys.pairName,
+                },
+                config: "contenttype",
+                headers: {
+                    "Content-Type": "application/json",
+                }
+            });
+            $scope.$apply(() => {
+                $scope.deletionResult = response.data;
+            });
+        };
+    });
+</script>
+
+<div class="p-3 my-3 bg-dark text-white" style="background-image: url(https://wallpaperaccess.com/full/2454628.png);" ng-app="myApp" ng-controller="myCtrl">
+
+    <h1 class="text-center">Monitoring System</h1>
+    <p><br></p>
+
+    <p>
+        <form class="form-inline h-100 d-flex align-items-center justify-content-center">
+            <button id="homeButton" class="btn btn-outline-success mr-3" ng-click="home()">Home</button>
+            <button id="loginButton" class="btn btn-outline-success mr-3" ng-click="login()">Login</button>
+            <button id="profileButton" class="btn btn-outline-success mr-3" ng-click="profile()">Profile</button>
+            <button id="logoutButton" class="btn btn-outline-success mr-3" ng-click="logout()">Logout</button>
+        </form>
+        <br>
+        <div id="userDivId">
+            <img src="{{user.picture}}" class="rounded mx-auto d-block"  style="width:140px;height:150px;">
+            <p><pre class="text-white h-100 d-flex align-items-center justify-content-center">{{userPretty}}</pre></p>
+        </div>
+    </p>
+
+    <div class="h-100 d-flex align-items-center justify-content-center">
+        <button id="keysButton" class="btn btn-outline-success mr-3" ng-click="keys()">Keys Options</button>
+    </div>
+    
+    <p></p>
+    <div id="keysDiv">
+        <p class="h-100 d-flex align-items-center justify-content-center">Generate Public Key - Secret Key Pair:</p>
+        <p>
+            <form class="form-inline h-100 d-flex align-items-center justify-content-center">
+                <input class="w-25 form-control mr-3" placeholder="Enter Pair Name" type="text" ng-model="pairOfKeysName">
+                <button class="btn btn-outline-primary mr-3" ng-click="generatePairOfKeys()" ng-href="{{ url }}">Generate</button>
+            </form>
+            <p><div class="font-weight-normal h-100 d-flex align-items-center justify-content-center">{{generationResult}}</div></p>
+        </p>
+        <br>
+
+        <p class="h-100 d-flex align-items-center justify-content-center">Upload file with Public Key - Secret Key Pair:</p>
+        <p>
+            <form class="form-inline h-100 d-flex align-items-center justify-content-center">
+                <input class="btn btn-outline-primary mr-3" type="file" id="file" name="file" size="60"/>
+                <button class="btn btn-outline-primary mr-3" ng-click="loadPairOfKeys()">Load</button>
+            </form>
+            <p><div class="font-weight-normal h-100 d-flex align-items-center justify-content-center">{{loadingResult}}</div></p>
+        </p>
+        <br>
+    
+        <p class="h-100 d-flex align-items-center justify-content-center">Delete Loaded Pair From Database</p>
+        <p>
+            <form class="form-inline h-100 d-flex align-items-center justify-content-center">
+                <button class="btn btn-outline-primary mr-3" ng-click="deletePair()">Delete</button>
+            </form>
+            <p><div class="font-weight-normal h-100 d-flex align-items-center justify-content-center">{{deletionResult}}</div></p>
+        </p>
+        <br>
+    </div>
+
+    <div class="h-100 d-flex align-items-center justify-content-center">
+        <button id="sensorsButton" class="btn btn-outline-success mr-3" ng-click="sensors()">Sensors Options</button>
+    </div>
+
+    <div id="sensorDiv">
+        <br>
+        <p class="h-100 d-flex align-items-center justify-content-center">Register or Unregister Loaded Public Key to Sensor</p>
+        <p>
+            <div class="h-100 d-flex align-items-center justify-content-center">
+                <button class="btn btn-outline-primary mr-3" ng-click="availableSensors()">Available Sensors</button>
+            </div>
+        </p>
+        <div class="row justify-content-center">
+            <div class="col-auto">
+                <table id="availableSensorsDiv" class="table text-white" >
+                    <thead><tr>
+                    <th>Sensor</th>
+                    <th>Location</th>
+                    </tr></thead>
+                    <tbody>
+                    <tr ng-repeat="avS in avSensors">
+                        <td> {{ avS.sensor }}</td>
+                        <td> {{ avS.location }} </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <p>
+            <form class="form-inline h-100 d-flex align-items-center justify-content-center">
+                <input class="w-25 form-control mr-3" placeholder="Enter Sensor Id" type="text" ng-model="sensorId">
+                <button class="btn btn-outline-primary mr-3" ng-click="registerPublicKey()">Register</button>
+                <button class="btn btn-outline-primary mr-3" ng-click="unregisterPublicKey()">Unregister</button>
+            </form>
+            <p><div class="font-weight-normal h-100 d-flex align-items-center justify-content-center">{{registrationResult}}</div></p>
+        </p>
+    </div>
+
+    <p></p>
+    <div class="h-100 d-flex align-items-center justify-content-center">
+        <button id="queryButton" class="btn btn-outline-success mr-3" ng-click="query()">Queries</button>
+    </div>
+    <div id="queryDiv">
+        <br>
+        <p class="h-100 d-flex align-items-center justify-content-center">Get Available Epochs for Loaded Pair of Keys</p>
+        <p>
+            <div class="h-100 d-flex align-items-center justify-content-center">
+                <button class="btn btn-outline-primary mr-3" ng-click="getAvailableEpochs()">Show Available Epochs</button>
+                <button class="btn btn-outline-primary mr-3" ng-click="clearEpochs()">Clear Epochs</button>
+            </div>
+        </p>
+        <p>
+            <pre id="availableEpochs" class="text-white h-100 d-flex align-items-center justify-content-center"></pre>
+            <div class="h-100 d-flex align-items-center justify-content-center">
+                <div class="row justify-content-center">
+                    <div class="col-auto">
+                        <table id="availableEpochsDiv" class="table text-white" >
+                            <thead><tr>
+                            <th>Epoch Id</th>
+                            <th>Epoch Start</th>
+                            <th>Epoch End</th>
+                            <th>Sensor</th>
+                            </tr></thead>
+                            <tbody>
+                            <tr ng-repeat="avEpoch in avEpochs">
+                                <td> {{ avEpoch.epochId }}</td>
+                                <td> {{ avEpoch.epochStartTimestamp }}</td>
+                                <td> {{ avEpoch.epochEndTimestamp }}</td>
+                                <td> {{ avEpoch.sensorId }}</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </p>
+        <p class="h-100 d-flex align-items-center justify-content-center">Get Result for Epochs</p>
+        <p>
+            <form class="form-inline h-100 d-flex align-items-center justify-content-center">
+                <button class="btn btn-outline-primary mr-3" ng-click="addEpochIdForm();">+ epoch</button></p>
+                <button class="btn btn-outline-primary mr-3" ng-click="removeEpochIdForm();">- epoch</button></p>
+            </form>
+        <p>
+            <form class="form-inline h-100 d-flex align-items-center justify-content-center">
+                <div ng-repeat="input in epochsIdsForms track by $index">
+                    <input class="w-6 form-control" placeholder="Enter Epochs' Ids" type="text" ng-model="epochsIds[$index]">
+                </div>
+            </form>
+        </p>
+        <div class="h-100 d-flex align-items-center justify-content-center">
+            <button class="btn btn-outline-primary mr-3" ng-click="getResult()">Get Result</button>
+            <button class="btn btn-outline-primary mr-3" ng-click="addToChart()">Add to Chart</button>
+            <button class="btn btn-outline-primary mr-3" ng-click="clearResults()">Clear Results</button>
+        </div>
+        
+        <p><pre id="queryResult" class="text-white h-100 d-flex align-items-center justify-content-center"></pre></p>
+        <p>
+            <div id="myChartDiv" class="h-100 d-flex align-items-center justify-content-center">
+                <canvas id="myChart" style="width:100%;max-width:600px"></canvas>
+            </div>
+        </p>
+    </div>
+    
+</div>
+
+</body>
+</html>

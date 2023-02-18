@@ -1,0 +1,4 @@
+[ZoneTransfer]
+ZoneId=3
+ReferrerUrl=https://gitlab.com/b3730/generator/-/blob/main/sample_input.csv
+HostUrl=https://gitlab.com/b3730/generator/-/raw/main/sample_input.csv?inline=false

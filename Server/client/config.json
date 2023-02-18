@@ -1,0 +1,27 @@
+{
+    "SERVER_PORT": 4200,
+    "PATH_CLIENT_INTERFACE": "/client/interface",
+    "PATH_SENSOR_EPOCH_RESULT": "/epoch/result",
+    "PATH_CLIENT_QUERY": "/query",
+    "PATH_AVAILABLE_EPOCHS": "/epochs",
+    "PATH_AVAILABLE_SENSORS": "/sensors",
+    "PATH_DELETE_PKC_DATA": "/delete",
+    "PATH_REGISTER_PKC": "/register",
+    "PATH_UNREGISTER_PKC": "/unregister",
+    "SNIFFERS_DATA": {
+        "sensor1": {
+            "SNIFFER_URL_REGISTER_PKC": "http://127.0.0.1:8000/register",
+            "SNIFFER_URL_UNREGISTER_PKC": "http://127.0.0.1:8000/unregister",
+            "LOCATION": "Precis"
+        }
+    },
+    "MULTIPLY_SERVICE_URL": "http://127.0.0.1:7000/multiply",
+    "PUBLIC_KEYS_INDEX": "public_keys_pairs",
+    "BLOOM_FILTER_MAX_SIZE": 500,
+    "ELASTICSEARCH_NODE": "https://localhost:9200",
+    "ELASTICSEARCH_CA_FILE": "./http_ca.crt",
+    "ELASTICSEARCH_USER": "elastic",
+    "ELASTICSEARCH_PASSWORD": "*fRNG+j+*Tjtwu1Ddw8I",
+    "ELASTICSEARCH_REQUEST_TIMEOUT": 5000,
+    "ELASTICSEARCH_SIZE_LIMIT": 1000
+}
